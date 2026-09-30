@@ -21,7 +21,7 @@
  * notifications/initialized → tools/call. The session id is cached per
  * provider instance and re-established once when the server reports it stale.
  *
- * @module @local/web-search-exa
+ * @module @local/dsh-web-search-exa
  */
 
 /** Cordis plugin name used by loader diagnostics. */

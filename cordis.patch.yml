@@ -1,12 +1,18 @@
-# Bundle patch for @local/web-search-exa: register the Exa MCP-backed
-# web search provider. Select it with the `web` row's searchProvider: exa
-# (kept in the profile's user patch layer, because a matching override
-# replaces the complete row config).
+# Bundle patch for @local/dsh-web-search-exa: register the Exa MCP-backed web
+# search provider, then point the `web` row's `searchProvider` at it, because a
+# provider nothing selects is never called. A patch replaces the targeted row's
+# whole `config`, so `fetchProvider` is restated (its value is dsh-base's).
+# A later layer — the profile's own cordis.patch.yml — can override either row.
 - insert:
     - id: web-search-exa
-      name: '@local/web-search-exa'
+      name: '@local/dsh-web-search-exa'
       config:
         url: https://mcp.exa.ai/mcp
         toolName: web_search_exa
         numResults: 10
         timeoutMs: 45000
+
+- id: web
+  config:
+    searchProvider: exa
+    fetchProvider: http

@@ -1,11 +1,18 @@
 {
-  "name": "@local/web-search-exa",
+  "name": "@local/dsh-web-search-exa",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "description": "DSH web search provider backed by Exa's official hosted MCP endpoint (anonymous, no API key)",
+  "files": [
+    "index.js",
+    "cordis.patch.yml",
+    "locale"
+  ],
   "exports": {
-    ".": "./index.js"
+    ".": "./index.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
   },
   "dsh": {
     "bundle": {

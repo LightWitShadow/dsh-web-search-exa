@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Web Search (Exa)",
+    "description": "Points the built-in web_search tool at Exa's official hosted MCP endpoint over its keyless anonymous channel — no API key required — and selects that provider for the web seam. web_fetch keeps using the built-in HTTP fetcher."
+  }
+}

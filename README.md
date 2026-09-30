@@ -10,7 +10,7 @@
 web_search 工具 → ctx.web.search() → 选中的 search provider → 具体后端
 ```
 
-provider 通过 `ctx.web.registerSearchProvider({ id, available(), search() })` 注册；选哪个由 `web` 插件的配置 `searchProvider`（或环境变量 `DSH_WEB_SEARCH_PROVIDER`）决定。DSH 自带的 provider 是 `deepseek-official`（需要 `DEEPSEEK_API_KEY`，或使用 DeepSeek 账号登录）。本插件注册 **provider id = `exa`**，并把 profile 的 `web` 行指到它。
+provider 通过 `ctx.web.registerSearchProvider({ id, available(), search() })` 注册；选哪个由 `web` 插件的配置 `searchProvider`（或环境变量 `DSH_WEB_SEARCH_PROVIDER`）决定。DSH 自带的 provider 是 `deepseek-official`（需要 `DEEPSEEK_API_KEY`，或使用 DeepSeek 账号登录）。本插件注册 **provider id = `exa`**，并**在同一个 bundle patch 里把 `web` 行指到它**。
 
 ## 为什么可以无 key
 
@@ -24,27 +24,30 @@ web_search → ctx.web → ExaSearchProvider(id=exa)
 
 ## 配置
 
-配置在 bundle 的 `cordis.patch.yml` 里（也可在 profile 的 `cordis.patch.yml` 用同 id 覆盖行整体替换）：
+配置分两处，都在 bundle 的 `cordis.patch.yml` 里（`web` 行的 id 是 `web`，`searchProvider`/`fetchProvider` 是它**仅有的两个** config 键）：
 
 ```yaml
+# 1) 插入 provider 行并带上默认配置
 - insert:
     - id: web-search-exa
-      name: '@local/web-search-exa'
+      name: '@local/dsh-web-search-exa'
       config:
         url: https://mcp.exa.ai/mcp   # Exa 官方托管 MCP
         toolName: web_search_exa      # 该端点上的搜索工具名
         numResults: 10                # 默认结果数（1–50）
         timeoutMs: 45000              # 单次搜索整体超时
-```
 
-还需要把选择指过来（**必须**，否则 `web` 行仍指向原 provider）：
-
-```yaml
+# 2) 把选择指过来。必须：注册了 provider 但没人选，web_search 永远不会调用它。
+#    patch 会整行替换 config，所以 fetchProvider 必须重述（值取自 dsh-base）。
 - id: web
   config:
     searchProvider: exa
-    fetchProvider: http    # 注意：同 id override 会整体替换该行 config，fetchProvider 必须保留
+    fetchProvider: http
 ```
+
+想改这两行，不必动本包：在自己的 profile `cordis.patch.yml` 里用同 id 覆盖即可（profile 层在 bundle 层之后应用，后写胜出）。
+
+> **别把 `web` 的选择漏掉**：当 `searchProvider` 为空而 `deepseek-official` 与 `exa` 同时可用时，seam 会以 `multiple usable web providers are registered …` 失败——所以"只插 provider 行"是坏配置，不是"没生效"。
 
 ### 日后提额（可选）
 
@@ -58,16 +61,20 @@ web_search → ctx.web → ExaSearchProvider(id=exa)
 
 ## 与 web_fetch 的关系
 
-本插件**只替换搜索**。`web_fetch` 工具走的是另一个 provider（`dsh-web-fetch-http`，纯 HTTP 抓取），不受影响，也无需改动。
+本插件**只替换搜索**。`web_fetch` 工具走的是另一个 provider（`dsh-web-fetch-http`，id = `http`，纯 HTTP 抓取），不受影响，也无需改动——所以 `web` 行的覆盖里要保留 `fetchProvider: http`。
 
 ## 结构
 
 | 文件 | 角色 |
 |---|---|
 | `index.js` | Host 半边：一个零依赖的 Exa provider（手写 MCP streamable-http 客户端） |
-| `cordis.patch.yml` | 插入 provider 行并带上默认配置 |
+| `cordis.patch.yml` | 插入 provider 行、带上默认配置，并把 `web` 行指到 `exa` |
+| `locale/en.json`、`locale/zh.json` | **DSH 插件描述**：插件管理界面显示的标题与简介 |
+| `package.json` | `dsh.bundle.patch` + `exports`（放行 `./package.json` 与 `./locale/*.json`，否则描述读不到） |
 
 **零依赖是刻意的**：插件以 pnpm `link:` 方式安装，其真实路径下解析不到任何 `@deepseek-ai/*`，因此只用 `node:` 内置能力；它需要的一切宿主能力都来自活的服务对象（`ctx.web`）。
+
+**插件描述**由 DSH 通过 ESM 解析器读取导出资源得到：`<包名>/locale/en.json`（精确的英文资源）以及同目录下每个 `<lang>.json`，内容形如 `{"meta":{"title":"…","description":"…"}}`；缺省时回落到 `package.json` 的 `name`/`description`。详见 `dsh-session-delete/README.md` 的「DSH 插件描述」一节。
 
 ## 实现要点
 
@@ -81,9 +88,9 @@ web_search → ctx.web → ExaSearchProvider(id=exa)
 ## 验证
 
 ```powershell
-# 直接跑 provider（不需要 DSH 运行）
-& "$env:USERPROFILE\.dsh\dsh-runtimes\dsh-primary-runtime\dependencies\node\bin\node.exe" -e "
-import('file:///C:/Users/<你>/.dsh/plugins/web-search-exa/index.js').then(async (m) => {
+# 直接跑 provider（不需要 DSH 运行）；node 用安装目录自带的那个
+& "D:\Applications\DeepSeek Harness\resources\runtime\primary-runtime\dependencies\node\bin\node.exe" -e "
+import('file:///C:/Users/<你>/.dsh/plugins/dsh-web-search-exa/index.js').then(async (m) => {
   const p = new m.ExaMcpSearchProvider(() => ({ url: 'https://mcp.exa.ai/mcp', toolName: 'web_search_exa', numResults: 3, timeoutMs: 45000 }));
   const r = await p.search({ query: 'DeepSeek Harness', maxResults: 3 });
   console.log(r.sources.length, r.sources[0]?.url);
@@ -100,10 +107,11 @@ import('file:///C:/Users/<你>/.dsh/plugins/web-search-exa/index.js').then(async
 | `multiple usable web providers are registered …` | 同时注册了多个可用 provider 且没有显式选择 → 显式设置 `searchProvider` |
 | `Exa MCP endpoint answered HTTP 4xx/5xx` | 匿名速率限制或端点变更；提额见上文，或稍后重试 |
 | `Exa search timed out after …` | 网络慢/代理问题；调大 `timeoutMs` |
-| 搜索能跑但结果为空 | Exa 文本格式可能变化 → 看 `delete`/宿主日志里的 `no recognizable search results`，并按新格式调整 `parseExaResults` |
+| 搜索能跑但结果为空 | Exa 文本格式可能变化 → 看宿主日志里的 `no recognizable search results`，并按新格式调整 `parseExaResults` |
+| 插件管理界面里显示的是裸包名而不是标题 | `exports` 里少了 `./package.json` 或 `./locale/*.json`，或 `locale/en.json` 不存在/不是合法 JSON |
 
 ## 开发
 
-- 两处副本需同步：`~/.dsh/plugins/web-search-exa/`（**运行源**）与工作区开发副本。
+- 两处副本需同步：`~/.dsh/plugins/dsh-web-search-exa/`（**运行源**）与工作区开发副本。
 - **Host 半边改动需重启 DSH 生效**（ESM 模块缓存）；改完可用上面的 standalone 测试先验证，再重启。
-- 与自带 provider 的对比参考：`@deepseek-ai/dsh-web-search-deepseek`（同样的 seam、同样的 `apply/inject/name` 导出形态）。
+- 与自带 provider 的对比参考：`@deepseek-ai/dsh-web-search-deepseek`（同样的 seam、同样的 `apply/inject/name` 导出形态，其 provider id 是 `deepseek-official`）。
